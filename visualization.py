@@ -5,6 +5,8 @@ import logging
 import pandas as pd
 import plotly.graph_objects as go
 
+from backtest_dao import BacktestDAO
+
 logger = logging.getLogger(__name__)
 
 PORTFOLIO_COLOR = "blue"
@@ -17,14 +19,15 @@ def create_performance_chart(plot_data: list[dict], trade_data: list[dict] | Non
     """Create a Plotly chart from backtest performance data.
 
     Args:
-        plot_data: List of dictionaries containing timestamp and portfolio_value (from get_plot_data).
-        trade_data: Optional list of dictionaries containing timestamp, event_type, and price (from get_signal_events).
+        plot_data: List of dicts with timestamp, portfolio_value (from get_plot_data).
+        trade_data: Optional list of dicts with timestamp, event_type, price (from get_signal_events).
 
     Returns:
         A Plotly Figure object for rendering performance metrics.
 
     Raises:
         ValueError: If required fields are missing in plot_data or trade_data.
+
     """
     if not plot_data:
         logger.warning("Empty plot data provided")
@@ -38,12 +41,12 @@ def create_performance_chart(plot_data: list[dict], trade_data: list[dict] | Non
         return fig
 
     # Convert plot_data to DataFrame
-    df = pd.DataFrame(plot_data)
-    if "timestamp" not in df.columns or "portfolio_value" not in df.columns:
-        logger.error("Missing required columns in plot_data: 'timestamp', 'portfolio_value'")
-        raise ValueError("Invalid plot_data: missing required columns")
+    portfolio_df = pd.DataFrame(plot_data)
+    if "timestamp" not in portfolio_df.columns or "portfolio_value" not in portfolio_df.columns:
+        logger.error("Missing required columns in plot_data: %s", ["timestamp", "portfolio_value"])
+        raise ValueError("Missing required columns: timestamp, portfolio_value")
 
-    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+    portfolio_df["timestamp"] = pd.to_datetime(portfolio_df["timestamp"], utc=True)
 
     # Create figure
     fig = go.Figure()
@@ -51,11 +54,11 @@ def create_performance_chart(plot_data: list[dict], trade_data: list[dict] | Non
     # Portfolio value line
     fig.add_trace(
         go.Scatter(
-            x=df["timestamp"],
-            y=df["portfolio_value"],
+            x=portfolio_df["timestamp"],
+            y=portfolio_df["portfolio_value"],
             mode="lines",
             name="Portfolio Value",
-            line=dict(color=PORTFOLIO_COLOR),
+            line={"color": PORTFOLIO_COLOR},
         )
     )
 
@@ -75,7 +78,7 @@ def create_performance_chart(plot_data: list[dict], trade_data: list[dict] | Non
                         y=buy_trades["price"],
                         mode="markers",
                         name="Buy Trade",
-                        marker=dict(symbol="triangle-up", size=MARKER_SIZE, color=BUY_COLOR),
+                        marker={"symbol": "triangle-up", "size": MARKER_SIZE, "color": BUY_COLOR},
                     )
                 )
 
@@ -87,7 +90,7 @@ def create_performance_chart(plot_data: list[dict], trade_data: list[dict] | Non
                         y=sell_trades["price"],
                         mode="markers",
                         name="Sell Trade",
-                        marker=dict(symbol="triangle-down", size=MARKER_SIZE, color=SELL_COLOR),
+                        marker={"symbol": "triangle-down", "size": MARKER_SIZE, "color": SELL_COLOR},
                     )
                 )
         else:
