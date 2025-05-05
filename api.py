@@ -139,6 +139,15 @@ async def backtest_demo(request: BacktestRequest, req: Request) -> templates.Tem
 async def get_events(start_date: str, end_date: str) -> list[dict]:
     return await backtest_api.get_signal_events(start_date, end_date)
 
+@app.get("/performance_chart")
+async def get_performance_chart(start_date: str, end_date: str):
+    backtest_dao = BacktestDAO()
+    await backtest_dao.setup()
+    plot_data = await backtest_dao.get_plot_data(start_date, end_date)
+    trade_data = await backtest_dao.get_signal_events(start_date, end_date)
+    fig = create_performance_chart(plot_data, trade_data)
+    return fig.to_json()
+
 @app.get("/performance", dependencies=[Depends(verify_api_key)])
 async def performance_page(request: Request, start_date: str, end_date: str) -> templates.TemplateResponse:
     logger.info("Performance request: start_date=%s, end_date=%s", start_date, end_date)
