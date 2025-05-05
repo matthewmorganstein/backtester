@@ -13,8 +13,10 @@ logger = logging.getLogger(__name__)
 
 BACKTEST_RESULTS_TABLE = "backtest_results"
 SIGNAL_EVENTS_TABLE = "signal_events"
+PORTFOLIO_UPDATES_TABLE = "portfolio_updates"
 REQUIRED_RESULT_KEYS = {"final_portfolio_value", "returns", "start_date", "end_date"}
 REQUIRED_EVENT_KEYS = {"timestamp", "event_type", "price"}
+REQUIRED_PORTFOLIO_KEYS = {"portfolio_value", "cash", "position"}
 POOL_NOT_INITIALIZED = "Database pool not initialized"
 
 class BacktestDAO:
@@ -104,6 +106,40 @@ class BacktestDAO:
             logger.exception("Failed to save signal event")
             raise
 
+    async def save_portfolio_update(self, backtest_id: str, timestamp: pd.Timestamp, details: dict[str, Any]) -> None:
+        """Save a portfolio update to the database.
+
+        Args:
+            backtest_id: Unique identifier for the backtest.
+            timestamp: Timestamp of the update.
+            details: Dictionary containing portfolio details (portfolio_value, cash, position).
+
+        Raises:
+            ValueError: If required keys are missing in details.
+            PostgresError: If a database error occurs.
+        """
+        if not all(key in details for key in REQUIRED_PORTFOLIO_KEYS):
+            raise ValueError("Portfolio details missing required keys: %s" % REQUIRED_PORTFOLIO_KEYS)
+        
+        query = """
+            INSERT INTO portfolio_updates (backtest_id, timestamp, portfolio_value, cash, position)
+            VALUES ($1, $2, $3, $4, $5)
+        """
+        try:
+            async with self.dao.pool.acquire() as conn:
+                await conn.execute(
+                    query,
+                    backtest_id,
+                    timestamp,
+                    float(details["portfolio_value"]),
+                    float(details["cash"]),
+                    int(details["position"]),
+                )
+            logger.info("Saved portfolio update for backtest ID %s at %s", backtest_id, timestamp)
+        except PostgresError as _:
+            logger.exception("Failed to save portfolio update")
+            raise
+
     async def get_plot_data(self, start_date: str, end_date: str) -> list[dict]:
         """Fetch plot data for performance visualization.
 
@@ -123,7 +159,7 @@ class BacktestDAO:
         
         query = """
             SELECT timestamp, portfolio_value
-            FROM backtest_results
+            FROM portfolio_updates
             WHERE timestamp >= $1 AND timestamp <= $2
             ORDER BY timestamp
         """
