@@ -3,8 +3,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+import asyncpg
 import pandas as pd
-from asyncpg import Pool
 from asyncpg.exceptions import PostgresError
 
 from dao import PostgresDAO
@@ -14,6 +14,8 @@ logger = logging.getLogger(__name__)
 BACKTEST_RESULTS_TABLE = "backtest_results"
 SIGNAL_EVENTS_TABLE = "signal_events"
 REQUIRED_RESULT_KEYS = {"final_portfolio_value", "returns", "start_date", "end_date"}
+REQUIRED_EVENT_KEYS = {"timestamp", "event_type", "price"}
+POOL_NOT_INITIALIZED = "Database pool not initialized"
 
 class BacktestDAO:
     """DAO for backtest results and signal events."""
@@ -49,10 +51,10 @@ class BacktestDAO:
             PostgresError: If a database error occurs.
         """
         if not all(key in result for key in REQUIRED_RESULT_KEYS):
-            raise ValueError(f"Result dictionary missing required keys: {REQUIRED_RESULT_KEYS}")
+            raise ValueError("Result dictionary missing required keys: %s" % REQUIRED_RESULT_KEYS)
         
-        query = f"""
-            INSERT INTO {BACKTEST_RESULTS_TABLE} (backtest_id, final_portfolio_value, returns, start_date, end_date)
+        query = """
+            INSERT INTO backtest_results (backtest_id, final_portfolio_value, returns, start_date, end_date)
             VALUES ($1, $2, $3, $4, $5)
         """
         try:
@@ -66,7 +68,7 @@ class BacktestDAO:
                     pd.to_datetime(result["end_date"]),
                 )
             logger.info("Saved backtest result for ID %s", backtest_id)
-        except PostgresError as e:
+        except PostgresError as _:
             logger.exception("Failed to save backtest result")
             raise
 
@@ -81,12 +83,11 @@ class BacktestDAO:
             ValueError: If required keys are missing in event.
             PostgresError: If a database error occurs.
         """
-        required_keys = {"timestamp", "event_type", "price"}
-        if not all(key in event for key in required_keys):
-            raise ValueError(f"Event dictionary missing required keys: {required_keys}")
+        if not all(key in event for key in REQUIRED_EVENT_KEYS):
+            raise ValueError("Event dictionary missing required keys: %s" % REQUIRED_EVENT_KEYS)
         
-        query = f"""
-            INSERT INTO {SIGNAL_EVENTS_TABLE} (backtest_id, timestamp, event_type, price)
+        query = """
+            INSERT INTO signal_events (backtest_id, timestamp, event_type, price)
             VALUES ($1, $2, $3, $4)
         """
         try:
@@ -99,7 +100,7 @@ class BacktestDAO:
                     float(event["price"]),
                 )
             logger.info("Saved signal event for backtest ID %s at %s", backtest_id, event["timestamp"])
-        except PostgresError as e:
+        except PostgresError as _:
             logger.exception("Failed to save signal event")
             raise
 
@@ -118,11 +119,11 @@ class BacktestDAO:
             PostgresError: If a database error occurs.
         """
         if not self.dao.pool:
-            raise ValueError("Database pool not initialized")
+            raise ValueError(POOL_NOT_INITIALIZED)
         
-        query = f"""
+        query = """
             SELECT timestamp, portfolio_value
-            FROM {BACKTEST_RESULTS_TABLE}
+            FROM backtest_results
             WHERE timestamp >= $1 AND timestamp <= $2
             ORDER BY timestamp
         """
@@ -130,7 +131,7 @@ class BacktestDAO:
             async with self.dao.pool.acquire() as conn:
                 rows = await conn.fetch(query, pd.to_datetime(start_date), pd.to_datetime(end_date))
             return [dict(row) for row in rows]
-        except PostgresError as e:
+        except PostgresError as _:
             logger.exception("Failed to fetch plot data")
             return []
 
@@ -149,11 +150,11 @@ class BacktestDAO:
             PostgresError: If a database error occurs.
         """
         if not self.dao.pool:
-            raise ValueError("Database pool not initialized")
+            raise ValueError(POOL_NOT_INITIALIZED)
         
-        query = f"""
+        query = """
             SELECT timestamp, event_type, price
-            FROM {SIGNAL_EVENTS_TABLE}
+            FROM signal_events
             WHERE timestamp >= $1 AND timestamp <= $2
             ORDER BY timestamp
         """
@@ -161,6 +162,6 @@ class BacktestDAO:
             async with self.dao.pool.acquire() as conn:
                 rows = await conn.fetch(query, pd.to_datetime(start_date), pd.to_datetime(end_date))
             return [dict(row) for row in rows]
-        except PostgresError as e:
+        except PostgresError as _:
             logger.exception("Failed to fetch signal events")
             return []
