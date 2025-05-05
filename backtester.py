@@ -1,8 +1,8 @@
 """Backtesting engine for trading signals using Pointland and Sphere strategies."""
 from __future__ import annotations
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
-from typing import Any, Dict, Optional
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -29,9 +29,9 @@ class TradeManager:
         self.cash: float = initial_cash
         self.portfolio_value: float = initial_cash
         self.position: int = 0
-        self.trades: list[Dict[str, Any]] = []
-        self.entry_price: Optional[float] = None
-        self.entry_idx: Optional[int] = None
+        self.trades: list[dict[str, Any]] = []
+        self.entry_price: float | None = None
+        self.entry_idx: int | None = None
 
     def reset(self) -> None:
         """Reset the trade manager to initial state."""
@@ -42,7 +42,7 @@ class TradeManager:
         self.entry_price = None
         self.entry_idx = None
 
-    def enter_position(self, signal: int, price: float, timestamp: datetime) -> Dict[str, Any]:
+    def enter_position(self, signal: int, price: float, timestamp: datetime) -> dict[str, Any]:
         """Enter a trading position based on a signal.
 
         Args:
@@ -54,7 +54,7 @@ class TradeManager:
             Dictionary containing trade details or empty dict if insufficient cash.
         """
         if signal == 1 and self.cash < price:
-            logger.warning("Insufficient cash for buy at %s", timestamp)
+            logger.warning(f"Insufficient cash for buy at {timestamp}")
             return {}
         self.position = signal
         self.entry_price = price
@@ -63,7 +63,7 @@ class TradeManager:
         self.trades.append(trade)
         return trade
 
-    def exit_position(self, exit_result: Dict[str, Any]) -> Dict[str, Any]:
+    def exit_position(self, exit_result: dict[str, Any]) -> dict[str, Any]:
         """Exit a trading position.
 
         Args:
@@ -90,7 +90,7 @@ class TradeManager:
         self.entry_idx = None
         return trade
 
-    def update_portfolio(self, price: float) -> Dict[str, Any]:
+    def update_portfolio(self, price: float) -> dict[str, Any]:
         """Update portfolio value based on current price.
 
         Args:
@@ -124,8 +124,8 @@ class SignalBacktester:
             square_threshold: Threshold for r_1/r_2 signals.
             distance_threshold: Threshold for target/stop in sphere_exit.
         """
-        default_end = datetime.now().strftime("%Y-%m-%d")
-        default_start = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+        default_end = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        default_start = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d")
         self.start_date = start_date or default_start
         self.end_date = end_date or default_end
         self.square_threshold = square_threshold
@@ -147,12 +147,12 @@ class SignalBacktester:
         try:
             df = await self.dao.get_data(self.start_date, self.end_date)
             if df.empty:
-                logger.error("No data for %s to %s", self.start_date, self.end_date)
+                logger.error(f"No data for {self.start_date} to {self.end_date}")
                 raise ValueError("Empty DataFrame from DAO")
             return df
-        except PostgresError:
+        except PostgresError as e:
             logger.exception("Failed to connect to RISE database")
-            raise ValueError("RISE database error")
+            raise ValueError("RISE database error") from e
 
     def _validate_and_clean_data(self, df: pd.DataFrame) -> pd.DataFrame:
         """Validate and clean the input DataFrame.
@@ -169,8 +169,8 @@ class SignalBacktester:
         required_columns = ["timestamp", "close", "high", "low", "r_1", "r_2"]
         missing_cols = [col for col in required_columns if col not in df.columns]
         if missing_cols:
-            logger.error("Missing columns: %s", missing_cols)
-            raise ValueError("DataFrame missing columns: %s" % missing_cols)
+            logger.error(f"Missing columns: {missing_cols}")
+            raise ValueError(f"DataFrame missing columns: {missing_cols}")
 
         df = df.copy()
         df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
@@ -184,22 +184,18 @@ class SignalBacktester:
 
         dropped_rows = original_rows - len(df)
         if dropped_rows > 0:
-            logger.warning("Dropped %d rows due to NaN or invalid data", dropped_rows)
+            logger.warning(f"Dropped {dropped_rows} rows due to NaN or invalid data")
         if len(df) > 0:
             signals_triggered = len(df[(df["r_1"] > self.square_threshold) | (df["r_2"] > self.square_threshold)])
             logger.info(
-                "Data range: %s to %s, r_1: %.2f to %.2f, r_2: %.2f to %.2f, Signals: %d",
-                df["timestamp"].min(),
-                df["timestamp"].max(),
-                df["r_1"].min(),
-                df["r_1"].max(),
-                df["r_2"].min(),
-                df["r_2"].max(),
-                signals_triggered,
+                f"Data range: {df['timestamp'].min()} to {df['timestamp'].max()}, "
+                f"r_1: {df['r_1'].min():.2f} to {df['r_1'].max():.2f}, "
+                f"r_2: {df['r_2'].min():.2f} to {df['r_2'].max():.2f}, "
+                f"Signals: {signals_triggered}"
             )
 
         if len(df) < self.target_bars:
-            logger.warning("Loaded %d rows, expected ~%d", len(df), self.target_bars)
+            logger.warning(f"Loaded {len(df)} rows, expected ~{self.target_bars}")
         if df.empty:
             logger.error("No valid data after cleaning")
             raise ValueError("Empty DataFrame after cleaning")
@@ -237,7 +233,7 @@ class SignalBacktester:
         signals[sell_signal] = -1
         return signals
 
-    def sphere_exit(self, df: pd.DataFrame, entry_idx: int, position: int) -> Dict[str, Any]:
+    def sphere_exit(self, df: pd.DataFrame, entry_idx: int, position: int) -> dict[str, Any]:
         """Determine exit conditions for a position.
 
         Args:
@@ -259,7 +255,7 @@ class SignalBacktester:
 
         future_data = df.iloc[entry_idx + 1 :].copy()
         if future_data.empty:
-            logger.warning("No future data for exit at %s", entry_data["timestamp"])
+            logger.warning(f"No future data for exit at {entry_data['timestamp']}")
             return {
                 "success": False,
                 "failure": True,
@@ -304,7 +300,7 @@ class SignalBacktester:
             "time_above_stop": time_above_stop,
         }
 
-    def polygon_profit(self) -> Dict[str, Any]:
+    def polygon_profit(self) -> dict[str, Any]:
         """Calculate profit metrics for recent trades.
 
         Returns:
@@ -324,37 +320,20 @@ class SignalBacktester:
             "success_rate_time": time_successes / len(last_15),
         }
 
-    async def backtest(self, backtest_id: str | None = None) -> Dict[str, Any]:
-        """Run the backtest over the specified date range.
+    async def process_signals(
+        self, df: pd.DataFrame, signals: pd.Series, backtest_id: str
+    ) -> tuple[list[dict[str, Any]], int]:
+        """Process trading signals and execute trades.
 
         Args:
-            backtest_id: Unique identifier for the backtest (optional).
+            df: DataFrame with market data.
+            signals: Series with trading signals.
+            backtest_id: Unique identifier for the backtest.
 
         Returns:
-            Dictionary with trades, final portfolio value, returns, metrics, and signal count.
-
-        Raises:
-            ValueError: If data loading or validation fails.
+            Tuple of trades list and number of signals triggered.
         """
-        self.trade_manager.reset()
-        try:
-            df = await self.load_data()
-        except ValueError:
-            logger.exception("Backtest failed")
-            return {
-                "trades": [],
-                "final_portfolio_value": self.trade_manager.cash,
-                "returns": 0.0,
-                "metrics": {},
-                "signals_triggered": 0,
-            }
-
         signals_triggered = len(df[(df["r_1"] > self.square_threshold) | (df["r_2"] > self.square_threshold)])
-        signals = self.pointland_signal(df)
-        logger.info("Backtest started: %s to %s, %d potential signals", self.start_date, self.end_date, signals_triggered)
-
-        backtest_id = backtest_id or f"backtest_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-
         for idx, (signal, row) in enumerate(zip(signals, df.itertuples())):
             timestamp = row.timestamp
 
@@ -410,18 +389,62 @@ class SignalBacktester:
             except PostgresError:
                 logger.exception("Failed to store portfolio update")
 
+        return self.trade_manager.trades, signals_triggered
+
+    async def save_backtest_results(self, backtest_id: str, result: dict[str, Any]) -> None:
+        """Save backtest results to the database.
+
+        Args:
+            backtest_id: Unique identifier for the backtest.
+            result: Dictionary containing backtest results.
+
+        Raises:
+            PostgresError: If database write fails.
+        """
+        try:
+            await self.backtest_dao.save_backtest_result(backtest_id, result)
+        except PostgresError:
+            logger.exception("Failed to store backtest result")
+
+    async def backtest(self, backtest_id: str | None = None) -> dict[str, Any]:
+        """Run the backtest over the specified date range.
+
+        Args:
+            backtest_id: Unique identifier for the backtest (optional).
+
+        Returns:
+            Dictionary with trades, final portfolio value, returns, metrics, and signal count.
+
+        Raises:
+            ValueError: If data loading or validation fails.
+        """
+        self.trade_manager.reset()
+        try:
+            df = await self.load_data()
+        except ValueError:
+            logger.exception("Backtest failed")
+            return {
+                "trades": [],
+                "final_portfolio_value": self.trade_manager.cash,
+                "returns": 0.0,
+                "metrics": {},
+                "signals_triggered": 0,
+            }
+
+        signals = self.pointland_signal(df)
+        backtest_id = backtest_id or f"backtest_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+
+        trades, signals_triggered = await self.process_signals(df, signals, backtest_id)
         metrics = self.polygon_profit()
         returns = (self.trade_manager.portfolio_value - INITIAL_CASH) / INITIAL_CASH
         result = {
-            "trades": self.trade_manager.trades,
+            "trades": trades,
             "final_portfolio_value": self.trade_manager.portfolio_value,
             "returns": returns,
             "metrics": metrics,
             "signals_triggered": signals_triggered,
         }
-        try:
-            await self.backtest_dao.save_backtest_result(backtest_id, result)
-        except PostgresError:
-            logger.exception("Failed to store backtest result")
-        logger.info("Backtest completed: %d signals, %d trades", signals_triggered, metrics["num_trades"])
+
+        await self.save_backtest_results(backtest_id, result)
+        logger.info(f"Backtest completed: {signals_triggered} signals, {metrics['num_trades']} trades")
         return result
