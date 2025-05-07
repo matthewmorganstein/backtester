@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 INITIAL_CASH = 100_000
 TARGET_BARS = 1000
 TIME_ABOVE_STOP_THRESHOLD = 30
+DEFAULT_DATE_RANGE_DAYS = 30
 
 class TradeManager:
     """Manages trading positions and portfolio updates."""
@@ -59,7 +60,12 @@ class TradeManager:
         self.position = signal
         self.entry_price = price
         self.cash -= price if signal == 1 else -price
-        trade = {"action": "buy" if signal == 1 else "sell", "price": price, "timestamp": timestamp, "profit": 0}
+        trade = {
+            "action": "buy" if signal == 1 else "sell",
+            "price": price,
+            "timestamp": timestamp,
+            "profit": 0,
+        }
         self.trades.append(trade)
         return trade
 
@@ -125,7 +131,9 @@ class SignalBacktester:
             distance_threshold: Threshold for target/stop in sphere_exit.
         """
         default_end = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        default_start = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d")
+        default_start = (
+            datetime.now(timezone.utc) - timedelta(days=DEFAULT_DATE_RANGE_DAYS)
+        ).strftime("%Y-%m-%d")
         self.start_date = start_date or default_start
         self.end_date = end_date or default_end
         self.square_threshold = square_threshold
@@ -186,7 +194,9 @@ class SignalBacktester:
         if dropped_rows > 0:
             logger.warning(f"Dropped {dropped_rows} rows due to NaN or invalid data")
         if len(df) > 0:
-            signals_triggered = len(df[(df["r_1"] > self.square_threshold) | (df["r_2"] > self.square_threshold)])
+            signals_triggered = len(
+                df[(df["r_1"] > self.square_threshold) | (df["r_2"] > self.square_threshold)]
+            )
             logger.info(
                 f"Data range: {df['timestamp'].min()} to {df['timestamp'].max()}, "
                 f"r_1: {df['r_1'].min():.2f} to {df['r_1'].max():.2f}, "
@@ -250,8 +260,16 @@ class SignalBacktester:
         signal_low = entry_data["low"]
         direction = "buy" if position == 1 else "sell"
 
-        target = signal_high * (1 + self.distance_threshold) if direction == "buy" else signal_low * (1 - self.distance_threshold)
-        stop = signal_low * (1 - self.distance_threshold) if direction == "buy" else signal_high * (1 + self.distance_threshold)
+        target = (
+            signal_high * (1 + self.distance_threshold)
+            if direction == "buy"
+            else signal_low * (1 - self.distance_threshold)
+        )
+        stop = (
+            signal_low * (1 - self.distance_threshold)
+            if direction == "buy"
+            else signal_high * (1 + self.distance_threshold)
+        )
 
         future_data = df.iloc[entry_idx + 1 :].copy()
         if future_data.empty:
@@ -290,7 +308,11 @@ class SignalBacktester:
             above_stop_data["time_diff"] = above_stop_data["timestamp"].diff().fillna(pd.Timedelta(seconds=0))
             time_above_stop = above_stop_data["time_diff"].sum().total_seconds() / 60.0
 
-        profit = (exit_row["close"] - entry_price) if direction == "buy" else (entry_price - exit_row["close"])
+        profit = (
+            exit_row["close"] - entry_price
+            if direction == "buy"
+            else entry_price - exit_row["close"]
+        )
         return {
             "success": success,
             "failure": failure,
@@ -306,13 +328,22 @@ class SignalBacktester:
         Returns:
             Dictionary with win rate, total profit, number of trades, and success rate based on time above stop.
         """
-        valid_trades = [t for t in self.trade_manager.trades if "profit" in t and t.get("price") is not None]
+        valid_trades = [
+            t for t in self.trade_manager.trades if "profit" in t and t.get("price") is not None
+        ]
         last_15 = valid_trades[-15:] if len(valid_trades) >= 15 else valid_trades
         if not last_15:
-            return {"win_rate": 0.0, "total_profit": 0.0, "num_trades": 0, "success_rate_time": 0.0}
+            return {
+                "win_rate": 0.0,
+                "total_profit": 0.0,
+                "num_trades": 0,
+                "success_rate_time": 0.0,
+            }
 
         wins = sum(1 for trade in last_15 if trade["profit"] > 0)
-        time_successes = sum(1 for trade in last_15 if trade.get("time_above_stop", 0) > TIME_ABOVE_STOP_THRESHOLD)
+        time_successes = sum(
+            1 for trade in last_15 if trade.get("time_above_stop", 0) > TIME_ABOVE_STOP_THRESHOLD
+        )
         return {
             "win_rate": wins / len(last_15),
             "total_profit": sum(trade["profit"] for trade in last_15),
@@ -321,7 +352,10 @@ class SignalBacktester:
         }
 
     async def process_signals(
-        self, df: pd.DataFrame, signals: pd.Series, backtest_id: str
+        self,
+        df: pd.DataFrame,
+        signals: pd.Series,
+        backtest_id: str,
     ) -> tuple[list[dict[str, Any]], int]:
         """Process trading signals and execute trades.
 
@@ -333,12 +367,18 @@ class SignalBacktester:
         Returns:
             Tuple of trades list and number of signals triggered.
         """
-        signals_triggered = len(df[(df["r_1"] > self.square_threshold) | (df["r_2"] > self.square_threshold)])
+        signals_triggered = len(
+            df[(df["r_1"] > self.square_threshold) | (df["r_2"] > self.square_threshold)]
+        )
         for idx, (signal, row) in enumerate(zip(signals, df.itertuples())):
             timestamp = row.timestamp
 
             if self.trade_manager.position != 0:
-                exit_result = self.sphere_exit(df, self.trade_manager.entry_idx, self.trade_manager.position)
+                exit_result = self.sphere_exit(
+                    df,
+                    self.trade_manager.entry_idx,
+                    self.trade_manager.position,
+                )
                 if exit_result["exit_price"]:
                     trade = self.trade_manager.exit_position(exit_result)
                     if trade:
@@ -355,7 +395,11 @@ class SignalBacktester:
                             logger.exception("Failed to store trade result")
 
             if signal != 0 and self.trade_manager.position == 0:
-                trade = self.trade_manager.enter_position(signal, row.close, timestamp)
+                trade = self.trade_manager.enter_position(
+                    signal,
+                    row.close,
+                    timestamp,
+                )
                 if trade:
                     self.trade_manager.entry_idx = idx
                     try:
@@ -367,7 +411,12 @@ class SignalBacktester:
                                 "price": trade["price"],
                             },
                         )
-                        signal_details = {"signal": signal, "price": row.close, "r_1": row.r_1, "r_2": row.r_2}
+                        signal_details = {
+                            "signal": signal,
+                            "price": row.close,
+                            "r_1": row.r_1,
+                            "r_2": row.r_2,
+                        }
                         await self.backtest_dao.save_signal_event(
                             backtest_id=backtest_id,
                             event={
@@ -434,7 +483,11 @@ class SignalBacktester:
         signals = self.pointland_signal(df)
         backtest_id = backtest_id or f"backtest_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
 
-        trades, signals_triggered = await self.process_signals(df, signals, backtest_id)
+        trades, signals_triggered = await self.process_signals(
+            df,
+            signals,
+            backtest_id,
+        )
         metrics = self.polygon_profit()
         returns = (self.trade_manager.portfolio_value - INITIAL_CASH) / INITIAL_CASH
         result = {
