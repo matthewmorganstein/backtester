@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backtest Performance</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .chart-container { width: 100%; max-width: 800px; margin: 0 auto; }
+        .info { margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <h2>Backtest Performance</h2>
+        <p><strong>Start Date:</strong> {{ start_date }}</p>
+        <p><strong>End Date:</strong> {{ end_date }}</p>
+        {% if result %}
+            <p><strong>Final Portfolio Value:</strong> ${{ result.final_portfolio_value | round(2) }}</p>
+            <p><strong>Returns:</strong> {{ (result.returns * 100) | round(2) }}%</p>
+            <p><strong>Signals Triggered:</strong> {{ result.signals_triggered }}</p>
+        {% endif %}
+    </div>
+    <div class="chart-container">
+        <div id="chart"></div>
+    </div>
+    <script>
+        const plotData = {{ plot_json | safe }};
+        Plotly.newPlot('chart', plotData.data, plotData.layout);
+    </script>
+</body>
+</html>
