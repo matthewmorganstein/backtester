@@ -15,8 +15,8 @@ DEFAULT_PORT = 8000
 class Settings(BaseSettings):
     """Configuration settings for the backtesting API."""
 
-    BACKTEST_DB_URL: str | None = None
     RISE_DB_URL: str | None = None
+    BACKTEST_DB_URL: str | None = None
     API_KEY: str | None = None
     PORT: int = DEFAULT_PORT
 
