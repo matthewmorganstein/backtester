@@ -1,21 +1,29 @@
-import os
-from dotenv import load_dotenv
+"""Application settings for the backtesting API."""
+from __future__ import annotations
 from typing import Optional
 
-load_dotenv()
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-class Settings:
-    RISE_DB_URL = os.getenv("RISE_DB_URL")  # RISE container
-    BACKTEST_DB_URL = os.getenv("BACKTEST_DB_URL")  # FlatFire container 
-    API_KEY = os.getenv("API_KEY")
-    PORT = int(os.getenv("PORT", "8000"))
+DEFAULT_PORT = 8000
 
-settings = Settings()
+class Settings(BaseSettings):
+    """Configuration settings for the backtesting API."""
+    BACKTEST_DB_URL: Optional[str] = None
+    RISE_DB_URL: Optional[str] = None
+    API_KEY: Optional[str] = None
+    PORT: int = DEFAULT_PORT
 
-# Validate critical settings
-if not settings.RISE_DB_URL:
-    raise ValueError("RISE_DB_URL environment variable is not set")
-if not settings.FLATFIRE_DB_URL:
-    raise ValueError("FLATFIRE_DB_URL environment variable is not set")
-if not settings.API_KEY:
-    raise ValueError("API_KEY environment variable is not set")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    def validate_settings(self) -> None:
+        """Validate critical settings."""
+        if not self.RISE_DB_URL:
+            raise ValueError("RISE_DB_URL environment variable is not set")
+        if not self.BACKTEST_DB_URL:
+            raise ValueError("BACKTEST_DB_URL environment variable is not set")
+        if not self.API_KEY:
+            raise ValueError("API_KEY environment variable is not set")
