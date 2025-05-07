@@ -1,6 +1,7 @@
 """FastAPI-based API for backtesting and performance visualization."""
 from __future__ import annotations
 import logging
+import typing
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any, AsyncGenerator, Dict, List
@@ -15,7 +16,7 @@ from backtest_dao import BacktestDAO
 from backtester import SignalBacktester
 from dao import PostgresDAO
 from settings import Settings
-from utils import InvalidToken, logger, verify_api_key
+from utils import logger, verify_api_key
 from visualization import create_performance_chart
 
 @asynccontextmanager
@@ -99,9 +100,9 @@ class BacktestAPI:
         except PostgresError as e:
             logger.exception("Database error")
             raise HTTPException(status_code=500, detail="Database error during backtest") from e
-        except InvalidToken as e:
-            logger.exception("Decryption error")
-            raise HTTPException(status_code=500, detail="Failed to decrypt indicators") from e
+        except ValueError as e:
+            logger.exception("Backtest error")
+            raise HTTPException(status_code=500, detail="Backtest failed") from e
 
     async def get_plot_data(self, start_date: str, end_date: str) -> List[Dict]:
         """Fetch plot data for visualization."""
