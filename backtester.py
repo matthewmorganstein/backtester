@@ -6,10 +6,9 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
-
-from asyncpg.exceptions import PostgresError
 from backtest_dao import BacktestDAO
 from dao import PostgresDAO
+from asyncpg.exceptions import PostgresError
 
 logger = logging.getLogger(__name__)
 

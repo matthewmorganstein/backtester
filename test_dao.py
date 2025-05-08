@@ -2,7 +2,6 @@
 import logging
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
-
 import pandas as pd
 import pytest
 from asyncpg import Pool

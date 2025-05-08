@@ -50,3 +50,4 @@ def test_create_performance_chart_empty_data() -> None:
     """Test creating a chart with empty data."""
     fig = create_performance_chart([])
     assert isinstance(fig, go
+    )

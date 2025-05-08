@@ -1,12 +1,13 @@
 """Unit tests for the Backtest API."""
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
-
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
+import asyncpg
 
 from api import BacktestAPI, BacktestRequest, app
+from fastapi import HTTPException
 from utils import InvalidToken
 
 @pytest.fixture
@@ -58,8 +59,9 @@ async def test_run_backtest_postgres_error(backtest_api, monkeypatch):
     mock_backtester.backtest = AsyncMock(side_effect=asyncpg.exceptions.PostgresError("Database error"))
     monkeypatch.setattr("api.SignalBacktester", mock_backtester)
     
-    request = BacktestRequest(start_date="2023-01-01", end_date="2023-01-02")
-    with pytest.raises(api.HTTPException) as exc:
+    from fastapi import HTTPException
+    request = BacktestRequest(start_date="2023-01-01", end_date="2023-01-02", square_threshold=350, distance_threshold=0.01)
+    with pytest.raises(HTTPException) as exc:
         await backtest_api.run_backtest(request)
     
     assert exc.value.status_code == 500
@@ -73,7 +75,7 @@ async def test_run_backtest_invalid_token(backtest_api, monkeypatch):
     monkeypatch.setattr("api.SignalBacktester", mock_backtester)
     
     request = BacktestRequest(start_date="2023-01-01", end_date="2023-01-2")
-    with pytest.raises(api.HTTPException) as exc:
+    with pytest.raises(HTTPException) as exc:
         await backtest_api.run_backtest(request)
     
     assert exc.value.status_code == 500

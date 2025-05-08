@@ -1,23 +1,21 @@
 """FastAPI-based API for backtesting and performance visualization."""
 from __future__ import annotations
 import logging
-import typing
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Any, AsyncGenerator, Dict, List
-
-from asyncpg.exceptions import PostgresError
+from typing import AsyncGenerator, Dict, List, Any
 from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, field_validator
-
 from backtest_dao import BacktestDAO
 from backtester import SignalBacktester
 from dao import PostgresDAO
 from settings import Settings
 from utils import logger, verify_api_key
 from visualization import create_performance_chart
+from asyncpg.exceptions import PostgresError
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -138,25 +136,6 @@ async def run_backtest_endpoint(request: BacktestRequest) -> Dict[str, Any]:
     """Run a backtest via the API."""
     return await backtest_api.run_backtest(request)
 
-@app.post("/backtest/demo", dependencies=[Depends(verify_api_key)])
-async def backtest_demo(request: BacktestRequest, req: Request) -> templates.TemplateResponse:
-    """Run a demo backtest and render performance chart."""
-    result = await backtest_api.run_backtest(request)
-    plot_data = await backtest_api.get_plot_data(request.start_date, request.end_date)
-    trade_data = await backtest_api.get_signal_events(request.start_date, request.end_date)
-    fig = create_performance_chart(plot_data, trade_data)
-    plot_json = fig.to_json()
-    return templates.TemplateResponse(
-        "performance.html",
-        {
-            "request": req,
-            "plot_json": plot_json,
-            "start_date": request.start_date,
-            "end_date": request.end_date,
-            "result": result,
-        },
-    )
-
 @app.get("/events", dependencies=[Depends(verify_api_key)])
 async def get_events(start_date: str, end_date: str) -> List[Dict]:
     """Fetch signal events for a date range."""
@@ -165,15 +144,13 @@ async def get_events(start_date: str, end_date: str) -> List[Dict]:
 @app.get("/performance_chart")
 async def get_performance_chart(start_date: str, end_date: str) -> Dict:
     """Fetch performance chart data as JSON."""
-    backtest_dao = BacktestDAO()
-    await backtest_dao.setup()
-    plot_data = await backtest_dao.get_plot_data(start_date, end_date)
-    trade_data = await backtest_dao.get_signal_events(start_date, end_date)
+    plot_data = await backtest_api.get_plot_data(start_date, end_date)
+    trade_data = await backtest_api.get_signal_events(start_date, end_date)
     fig = create_performance_chart(plot_data, trade_data)
     return fig.to_json()
 
 @app.get("/performance", dependencies=[Depends(verify_api_key)])
-async def performance_page(request: Request, start_date: str, end_date: str) -> templates.TemplateResponse:
+async def performance_page(request: Request, start_date: str, end_date: str) -> HTMLResponse:
     """Render performance chart page."""
     logger.info("Performance request: start_date=%s, end_date=%s", start_date, end_date)
     try:
