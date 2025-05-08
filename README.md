@@ -1,4 +1,4 @@
-# flatfire.xyz
+# flatland
 
 visualization.py, a new module with utilities for creating interactive Plotly charts that display portfolio values and trade signals from backtest data. The implementation handles edge cases like empty data, includes proper error logging, and ensures correct data processing for visualization purposes.
 
