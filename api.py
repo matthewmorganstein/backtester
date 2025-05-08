@@ -68,10 +68,9 @@ class BacktestRequest(BaseModel):
         return v
 
 class BacktestAPI:
-    """Backtest API service class."""
-    def __init__(self) -> None:
-        self.dao = PostgresDAO()
-        self.backtest_dao = BacktestDAO()
+    def __init__(self, settings: Settings = Settings()) -> None:
+        self.dao = PostgresDAO(settings)
+        self.backtest_dao = BacktestDAO(settings)
 
     async def setup(self) -> None:
         """Initialize DAOs."""

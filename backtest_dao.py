@@ -2,11 +2,9 @@
 from __future__ import annotations
 import logging
 from typing import Any
-
-import asyncpg
+from settings import Settings
 import pandas as pd
 from asyncpg.exceptions import PostgresError
-
 from dao import PostgresDAO
 
 logger = logging.getLogger(__name__)
@@ -22,9 +20,9 @@ POOL_NOT_INITIALIZED = "Database pool not initialized"
 class BacktestDAO:
     """DAO for backtest results and signal events."""
 
-    def __init__(self) -> None:
+    def __init__(self, settings: Settings) -> None:
         """Initialize the BacktestDAO with a PostgresDAO instance."""
-        self.dao = PostgresDAO()
+        self.dao = PostgresDAO(settings)
 
     async def setup(self) -> None:
         """Set up the underlying PostgresDAO.

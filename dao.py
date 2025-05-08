@@ -2,13 +2,11 @@
 from __future__ import annotations
 import logging
 from typing import Union
-
+from settings import Settings
 import asyncpg
 import pandas as pd
 from asyncpg import Pool, create_pool
 from asyncpg.exceptions import PostgresError
-
-import settings
 
 logger = logging.getLogger(__name__)
 POOL_NOT_INITIALIZED = "Database pool not initialized"
@@ -16,19 +14,15 @@ POOL_NOT_INITIALIZED = "Database pool not initialized"
 class PostgresDAO:
     """Data Access Object for PostgreSQL database interactions."""
 
-    def __init__(self) -> None:
-        """Initialize the PostgresDAO with an uninitialized connection pool."""
-        self.pool: Union[Pool, None] = None
+class PostgresDAO:
+    def __init__(self, settings: Settings = Settings()) -> None:
+        self.pool: Pool | None = None
+        self.settings = settings
 
     async def setup(self) -> None:
-        """Set up the PostgreSQL connection pool.
-
-        Raises:
-            RuntimeError: If the pool initialization fails due to a PostgresError.
-        """
         try:
             self.pool = await create_pool(
-                dsn=settings.BACKTEST_DB_URL,
+                dsn=self.settings.BACKTEST_DB_URL,
                 min_size=1,
                 max_size=10,
             )
