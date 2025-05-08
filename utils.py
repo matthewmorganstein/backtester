@@ -26,19 +26,20 @@ if not API_KEY:
     logger.error("API_KEY not set in environment variables")
     raise RuntimeError("API_KEY not configured")
 VALID_API_KEYS = {API_KEY}
+VALID_API_KEYS_LOWER = {key.lower() for key in VALID_API_KEYS}
+
 
 def get_settings() -> Settings:
     """Provide settings as a dependency."""
     return settings
 
 async def verify_api_key(
-    x_api_key: Optional[str] = Header(None), settings: Settings = Depends(get_settings)
+    x_api_key: Optional[str] = Header(None),
 ) -> str:
     """Verify the API key provided in the X-API-Key header.
 
     Args:
         x_api_key: API key from the X-API-Key header.
-        settings: Application settings (injected dependency).
 
     Returns:
         The validated API key.
@@ -50,7 +51,7 @@ async def verify_api_key(
     if not x_api_key:
         logger.warning("API key missing in request")
         raise HTTPException(status_code=401, detail="API key missing")
-    if x_api_key.lower() not in {key.lower() for key in VALID_API_KEYS}:
+    if x_api_key.lower() not in VALID_API_KEYS_LOWER:
         logger.warning("Invalid API key provided")
         raise HTTPException(status_code=401, detail="Invalid API key")
     return x_api_key

@@ -3,12 +3,13 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import AsyncGenerator, Dict, List, Any
+from typing import AsyncGenerator, Any, Optional
 from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, field_validator
+
 from backtest_dao import BacktestDAO
 from backtester import SignalBacktester
 from dao import PostgresDAO
@@ -18,13 +19,13 @@ from visualization import create_performance_chart
 from asyncpg.exceptions import PostgresError
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     """Manage FastAPI application lifespan for DAO initialization and cleanup."""
     logger.info("Initializing Backtest API DAOs...")
     try:
         await backtest_api.setup()
         logger.info("Backtest API DAOs initialized successfully")
-    except Exception as e:
+    except Exception:  # Changed 'e' to '_'
         logger.exception("Failed to initialize DAOs")
         raise
     yield
@@ -33,7 +34,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await backtest_api.dao.close_pool()
         await backtest_api.backtest_dao.close_pool()
         logger.info("Backtest API DAO pools closed successfully")
-    except Exception as e:
+    except Exception:  # Changed 'e' to '_'
         logger.exception("Failed to close DAO pools")
 
 class BacktestRequest(BaseModel):
@@ -42,7 +43,7 @@ class BacktestRequest(BaseModel):
     end_date: str
     square_threshold: float = 350.0
     distance_threshold: float = 0.01
-    MAX_DATE_RANGE_DAYS: int = 30
+    MAX_DATE_RANGE_DAYS: int = 30  # Define as a class attribute
 
     @field_validator("start_date", "end_date")
     @classmethod
@@ -51,8 +52,9 @@ class BacktestRequest(BaseModel):
         try:
             datetime.strptime(v, "%Y-%m-%d")
             return v
-        except ValueError:
-            raise ValueError("Date must be in YYYY-MM-DD format")
+        except ValueError as e:
+            logger.debug("Invalid date format: %s", v)
+            raise ValueError("Date must be in YYYY-MM-DD format") from e
 
     @field_validator("end_date")
     @classmethod
@@ -68,16 +70,18 @@ class BacktestRequest(BaseModel):
         return v
 
 class BacktestAPI:
-    def __init__(self, settings: Settings = Settings()) -> None:
-        self.dao = PostgresDAO(settings)
-        self.backtest_dao = BacktestDAO(settings)
+    """Backtest API service class."""
+    def __init__(self, settings: Optional[Settings] = None) -> None:
+        """Initialize DAOs."""
+        self.dao = PostgresDAO(settings or Settings())
+        self.backtest_dao = BacktestDAO(settings or Settings())
 
     async def setup(self) -> None:
         """Initialize DAOs."""
         await self.dao.setup()
         await self.backtest_dao.setup()
 
-    async def run_backtest(self, request: BacktestRequest) -> Dict[str, Any]:
+    async def run_backtest(self, request: BacktestRequest) -> dict[str, Any]:
         """Run a backtest with the given parameters."""
         logger.info("Backtest request: %s", request)
         try:
@@ -101,11 +105,11 @@ class BacktestAPI:
             logger.exception("Backtest error")
             raise HTTPException(status_code=500, detail="Backtest failed") from e
 
-    async def get_plot_data(self, start_date: str, end_date: str) -> List[Dict]:
+    async def get_plot_data(self, start_date: str, end_date: str) -> list[dict]:
         """Fetch plot data for visualization."""
         return await self.backtest_dao.get_plot_data(start_date, end_date)
 
-    async def get_signal_events(self, start_date: str, end_date: str) -> List[Dict]:
+    async def get_signal_events(self, start_date: str, end_date: str) -> list[dict]:
         """Fetch signal events for visualization."""
         return await self.backtest_dao.get_signal_events(start_date, end_date)
 
@@ -114,11 +118,11 @@ settings = Settings()
 settings.validate_settings()
 
 # Instantiate FastAPI app and BacktestAPI after class definitions
-backtest_api = BacktestAPI()
+backtest_api = BacktestAPI(settings=settings)
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # TODO: Restrict to specific frontend URL in production
+    allow_origins=["*"],  # TODO: Restrict to specific frontend URL in production - [Author: Your Name, Issue: #123]
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -126,22 +130,22 @@ app.add_middleware(
 templates = Jinja2Templates(directory="templates")
 
 @app.get("/")
-async def root() -> Dict[str, str]:
+async def root() -> dict[str, str]:
     """Root endpoint for the API."""
     return {"message": "Welcome to the Backtest API"}
 
 @app.post("/backtest", dependencies=[Depends(verify_api_key)])
-async def run_backtest_endpoint(request: BacktestRequest) -> Dict[str, Any]:
+async def run_backtest_endpoint(request: BacktestRequest) -> dict[str, Any]:
     """Run a backtest via the API."""
     return await backtest_api.run_backtest(request)
 
 @app.get("/events", dependencies=[Depends(verify_api_key)])
-async def get_events(start_date: str, end_date: str) -> List[Dict]:
+async def get_events(start_date: str, end_date: str) -> list[dict]:
     """Fetch signal events for a date range."""
     return await backtest_api.get_signal_events(start_date, end_date)
 
 @app.get("/performance_chart")
-async def get_performance_chart(start_date: str, end_date: str) -> Dict:
+async def get_performance_chart(start_date: str, end_date: str) -> dict:
     """Fetch performance chart data as JSON."""
     plot_data = await backtest_api.get_plot_data(start_date, end_date)
     trade_data = await backtest_api.get_signal_events(start_date, end_date)

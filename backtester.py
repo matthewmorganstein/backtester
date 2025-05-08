@@ -2,8 +2,7 @@
 from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import logging
-from typing import Optional
-
+from typing import Optional, Any
 import numpy as np
 import pandas as pd
 from backtest_dao import BacktestDAO
@@ -16,6 +15,10 @@ INITIAL_CASH = 100_000
 TARGET_BARS = 1000
 TIME_ABOVE_STOP_THRESHOLD = 30
 DEFAULT_DATE_RANGE_DAYS = 30
+BUY_SIGNAL = 1
+SELL_SIGNAL = -1
+HOLD_SIGNAL = 0
+
 
 class TradeManager:
     """Manages trading positions and portfolio updates."""
@@ -53,14 +56,14 @@ class TradeManager:
         Returns:
             Dictionary containing trade details or empty dict if insufficient cash.
         """
-        if signal == 1 and self.cash < price:
-            logger.warning(f"Insufficient cash for buy at {timestamp}")
+        if signal == BUY_SIGNAL and self.cash < price:
+            logger.warning("Insufficient cash for buy at %s", timestamp)
             return {}
         self.position = signal
         self.entry_price = price
-        self.cash -= price if signal == 1 else -price
+        self.cash -= price if signal == BUY_SIGNAL else -price
         trade = {
-            "action": "buy" if signal == 1 else "sell",
+            "action": "buy" if signal == BUY_SIGNAL else "sell",
             "price": price,
             "timestamp": timestamp,
             "profit": 0,
@@ -79,9 +82,9 @@ class TradeManager:
         """
         exit_price = exit_result["exit_price"]
         profit = exit_result["profit"]
-        self.cash += exit_price if self.position == 1 else -exit_price
+        self.cash += exit_price if self.position == BUY_SIGNAL else -exit_price
         trade = {
-            "action": "sell" if self.position == 1 else "buy",
+            "action": "sell" if self.position == BUY_SIGNAL else "buy",
             "price": exit_price,
             "timestamp": exit_result["exit_time"],
             "profit": profit,
@@ -110,6 +113,7 @@ class TradeManager:
             "cash": self.cash,
             "position": self.position,
         }
+
 
 class SignalBacktester:
     """Backtests trading signals using Pointland and Sphere strategies."""
@@ -156,7 +160,6 @@ class SignalBacktester:
             if df.empty:
                 logger.error(f"No data for {self.start_date} to {self.end_date}")
                 raise ValueError("Empty DataFrame from DAO")
-            return df
         except PostgresError as e:
             logger.exception("Failed to connect to RISE database")
             raise ValueError("RISE database error") from e
@@ -237,9 +240,9 @@ class SignalBacktester:
         sell_signal = (df["close"] > prev_high) & (
             (df["r_1"] > self.square_threshold) | (df["r_2"] > self.square_threshold)
         )
-        signals = pd.Series(0, index=df.index, dtype=int)
-        signals[buy_signal] = 1
-        signals[sell_signal] = -1
+        signals = pd.Series(HOLD_SIGNAL, index=df.index, dtype=int)
+        signals[buy_signal] = BUY_SIGNAL
+        signals[sell_signal] = SELL_SIGNAL
         return signals
 
     def sphere_exit(self, df: pd.DataFrame, entry_idx: int, position: int) -> dict[str, Any]:
@@ -257,7 +260,7 @@ class SignalBacktester:
         entry_price = entry_data["close"]
         signal_high = entry_data["high"]
         signal_low = entry_data["low"]
-        direction = "buy" if position == 1 else "sell"
+        direction = "buy" if position == BUY_SIGNAL else "sell"
 
         target = (
             signal_high * (1 + self.distance_threshold)
@@ -285,12 +288,12 @@ class SignalBacktester:
         if direction == "buy":
             stop_condition = future_data["close"] <= stop
             target_condition = future_data["close"] >= target
-            opposing_signal = self.pointland_signal(future_data).shift(1).fillna(0) == -1
+            opposing_signal = self.pointland_signal(future_data).shift(1).fillna(0) == SELL_SIGNAL
             above_stop = future_data["close"] > stop
         else:
             stop_condition = future_data["close"] >= stop
             target_condition = future_data["close"] <= target
-            opposing_signal = self.pointland_signal(future_data).shift(1).fillna(0) == 1
+            opposing_signal = self.pointland_signal(future_data).shift(1).fillna(0) == BUY_SIGNAL
             above_stop = future_data["close"] < stop
 
         exit_conditions = stop_condition | target_condition | opposing_signal
@@ -393,7 +396,7 @@ class SignalBacktester:
                         except PostgresError:
                             logger.exception("Failed to store trade result")
 
-            if signal != 0 and self.trade_manager.position == 0:
+            if signal != HOLD_SIGNAL and self.trade_manager.position == 0:
                 trade = self.trade_manager.enter_position(
                     signal,
                     row.close,
@@ -420,7 +423,7 @@ class SignalBacktester:
                             backtest_id=backtest_id,
                             event={
                                 "timestamp": timestamp,
-                                "event_type": "buy_signal" if signal == 1 else "sell_signal",
+                                "event_type": "buy_signal" if signal == BUY_SIGNAL else "sell_signal",
                                 "price": row.close,
                             },
                         )
@@ -468,7 +471,7 @@ class SignalBacktester:
         """
         self.trade_manager.reset()
         try:
-            df = await self.load_data()
+            market_data = await self.load_data()
         except ValueError:
             logger.exception("Backtest failed")
             return {
@@ -479,11 +482,11 @@ class SignalBacktester:
                 "signals_triggered": 0,
             }
 
-        signals = self.pointland_signal(df)
+        signals = self.pointland_signal(market_data)
         backtest_id = backtest_id or f"backtest_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
 
         trades, signals_triggered = await self.process_signals(
-            df,
+            market_data,
             signals,
             backtest_id,
         )
@@ -498,5 +501,5 @@ class SignalBacktester:
         }
 
         await self.save_backtest_results(backtest_id, result)
-        logger.info(f"Backtest completed: {signals_triggered} signals, {metrics['num_trades']} trades")
+        logger.info("Backtest completed: %s signals, %s trades", signals_triggered, metrics['num_trades'])
         return result

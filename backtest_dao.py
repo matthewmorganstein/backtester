@@ -1,11 +1,15 @@
 """Data Access Object for managing backtest results and signal events in PostgreSQL."""
 from __future__ import annotations
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
 from settings import Settings
 import pandas as pd
 from asyncpg.exceptions import PostgresError
 from dao import PostgresDAO
+
+if TYPE_CHECKING:
+    from asyncpg import Pool
 
 logger = logging.getLogger(__name__)
 
@@ -17,11 +21,13 @@ REQUIRED_EVENT_KEYS = {"timestamp", "event_type", "price"}
 REQUIRED_PORTFOLIO_KEYS = {"portfolio_value", "cash", "position"}
 POOL_NOT_INITIALIZED = "Database pool not initialized"
 
+
 class BacktestDAO:
     """DAO for backtest results and signal events."""
 
     def __init__(self, settings: Settings) -> None:
         """Initialize the BacktestDAO with a PostgresDAO instance."""
+
         self.dao = PostgresDAO(settings)
 
     async def setup(self) -> None:
@@ -44,7 +50,8 @@ class BacktestDAO:
 
         Args:
             backtest_id: Unique identifier for the backtest.
-            result: Dictionary containing backtest results (final_portfolio_value, returns, start_date, end_date).
+            result: Dictionary containing backtest results
+                (final_portfolio_value, returns, start_date, end_date).
 
         Raises:
             ValueError: If required keys are missing in result.

@@ -15,6 +15,9 @@ SELL_COLOR = "red"
 MARKER_SIZE = 10
 PLOT_TEMPLATE = "plotly_white"
 
+MISSING_COLUMNS_ERROR = \
+    "Missing required columns: timestamp, portfolio_value"
+
 def create_performance_chart(plot_data: list[dict], trade_data: list[dict] | None = None) -> go.Figure:
     """Create a Plotly chart from backtest performance data.
 
@@ -44,7 +47,7 @@ def create_performance_chart(plot_data: list[dict], trade_data: list[dict] | Non
     portfolio_df = pd.DataFrame(plot_data)
     if "timestamp" not in portfolio_df.columns or "portfolio_value" not in portfolio_df.columns:
         logger.error("Missing required columns in plot_data: %s", ["timestamp", "portfolio_value"])
-        raise ValueError("Missing required columns: timestamp, portfolio_value")
+        raise ValueError(MISSING_COLUMNS_ERROR)
 
     portfolio_df["timestamp"] = pd.to_datetime(portfolio_df["timestamp"], utc=True)
 
