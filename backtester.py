@@ -61,6 +61,35 @@ class SignalBacktester:
             logger.exception("Failed to connect to RISE database")
             raise ValueError("RISE database error")
 
+    def _validate_and_clean_data(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Validate and clean the input DataFrame.
+
+        Args:
+            df: Input DataFrame with market data.
+
+        Returns:
+            Cleaned DataFrame.
+
+        Raises:
+            ValueError: If required columns are missing or data is invalid.
+        """
+        required_columns = ["timestamp", "close", "high", "low", "r_1", "r_2"]
+        missing_cols = [col for col in required_columns if col not in df.columns]
+        if missing_cols:
+            raise ValueError(f"Missing columns: {missing_cols}")
+
+        df = df.dropna(subset=required_columns)
+        if df.empty:
+            raise ValueError("Empty DataFrame after cleaning")
+
+        # Ensure chronological order
+        df = df.sort_values("timestamp")
+
+        # Log basic summary (optional, can be removed in production)
+        logger.debug(f"Loaded {len(df)} rows from {df['timestamp'].min()} to {df['timestamp'].max()}")
+
+        return df
+
     def _calculate_target_and_stop(
         self,
         direction: str,
