@@ -245,6 +245,123 @@ class SignalBacktester:
         signals[sell_signal] = SELL_SIGNAL
         return signals
 
+    def _calculate_target_and_stop(
+        self,
+        direction: str,
+        signal_high: float,
+        signal_low: float,
+    ) -> tuple[float, float]:
+        """Calculate target and stop prices.
+
+        Args:
+            direction: "buy" or "sell".
+            signal_high: High price at entry.
+            signal_low: Low price at entry.
+
+        Returns:
+            Tuple of (target, stop) prices.
+        """
+        if direction == "buy":
+            target = signal_high * (1 + self.distance_threshold)
+            stop = signal_low * (1 - self.distance_threshold)
+        else:
+            target = signal_low * (1 - self.distance_threshold)
+            stop = signal_high * (1 + self.distance_threshold)
+        return target, stop
+
+    def _check_exit_conditions(
+        self,
+        future_data: pd.DataFrame,
+        stop: float,
+        target: float,
+        direction: str,
+        opposing_signal: pd.Series,
+    ) -> pd.Series:
+        """Check if any exit condition is met.
+
+        Args:
+            future_data: DataFrame of price data after entry.
+            stop: Stop loss price.
+            target: Target profit price.
+            direction: "buy" or "sell".
+            opposing_signal: Series of opposing signals.
+
+        Returns:
+            Series indicating if any exit condition is met.
+        """
+        if direction == "buy":
+            stop_condition = future_data["close"] <= stop
+            target_condition = future_data["close"] >= target
+        else:
+            stop_condition = future_data["close"] >= stop
+            target_condition = future_data["close"] <= target
+        return stop_condition | target_condition | opposing_signal
+
+    def _determine_exit_outcome(
+        self,
+        exit_conditions: pd.Series,
+        future_data: pd.DataFrame,
+        direction: str,
+        stop: float,
+        target: float,
+        opposing_signal: pd.Series
+    ) -> tuple[bool, bool, pd.Series]:
+        """Determine the outcome (success/failure) of the exit.
+
+        Args:
+            exit_conditions: Series indicating if any exit condition is met.
+            future_data: DataFrame of price data after entry.
+            direction: "buy" or "sell"
+            stop: stop price
+            target: target price
+            opposing_signal: signal indicating the opposite trade
+
+        Returns:
+            Tuple of (success, failure, exit_row).
+        """
+        if exit_conditions.any():
+            exit_idx = exit_conditions.idxmax()
+            exit_row = future_data.loc[exit_idx]
+            if direction == "buy":
+                success = future_data["close"].loc[exit_idx] >= target
+                failure = future_data["close"].loc[exit_idx] <= stop or opposing_signal.loc[exit_idx]
+            else:
+                success = future_data["close"].loc[exit_idx] <= target
+                failure = future_data["close"].loc[exit_idx] >= stop or opposing_signal.loc[exit_idx]
+        else:
+            exit_idx = future_data.index[-1]
+            exit_row = future_data.loc[exit_idx]
+            success = False
+            failure = (direction == "buy" and exit_row["close"] <= stop) or (
+                direction == "sell" and exit_row["close"] >= stop
+            )
+        return success, failure, exit_row
+
+    def _calculate_time_above_stop(self, future_data: pd.DataFrame, stop: float, direction: str) -> float:
+        """Calculate time above/below stop price.
+
+        Args:
+            future_data: DataFrame of price data after entry.
+            stop: Stop loss price.
+            direction: "buy" or "sell"
+
+        Returns:
+            Time in minutes.
+        """
+        if direction == 'buy':
+            above_stop = future_data["close"] > stop
+        else:
+            above_stop = future_data["close"] < stop
+
+        time_above_stop = 0
+        if above_stop.any():
+            above_stop_data = future_data[above_stop][["timestamp"]].copy()
+            above_stop_data["time_diff"] = above_stop_data["timestamp"].diff().fillna(
+                pd.Timedelta(seconds=0)
+            )
+            time_above_stop = above_stop_data["time_diff"].sum().total_seconds() / 60.0
+        return time_above_stop
+
     def sphere_exit(self, df: pd.DataFrame, entry_idx: int, position: int) -> dict[str, Any]:
         """Determine exit conditions for a position.
 
@@ -262,16 +379,7 @@ class SignalBacktester:
         signal_low = entry_data["low"]
         direction = "buy" if position == BUY_SIGNAL else "sell"
 
-        target = (
-            signal_high * (1 + self.distance_threshold)
-            if direction == "buy"
-            else signal_low * (1 - self.distance_threshold)
-        )
-        stop = (
-            signal_low * (1 - self.distance_threshold)
-            if direction == "buy"
-            else signal_high * (1 + self.distance_threshold)
-        )
+        target, stop = self._calculate_target_and_stop(direction, signal_high, signal_low)
 
         future_data = df.iloc[entry_idx + 1 :].copy()
         if future_data.empty:
@@ -285,31 +393,17 @@ class SignalBacktester:
                 "time_above_stop": 0,
             }
 
-        if direction == "buy":
-            stop_condition = future_data["close"] <= stop
-            target_condition = future_data["close"] >= target
-            opposing_signal = self.pointland_signal(future_data).shift(1).fillna(0) == SELL_SIGNAL
-            above_stop = future_data["close"] > stop
-        else:
-            stop_condition = future_data["close"] >= stop
-            target_condition = future_data["close"] <= target
-            opposing_signal = self.pointland_signal(future_data).shift(1).fillna(0) == BUY_SIGNAL
-            above_stop = future_data["close"] < stop
+        opposing_signal = self.pointland_signal(future_data).shift(1).fillna(0) == (
+            SELL_SIGNAL if direction == "buy" else BUY_SIGNAL
+        )
+        exit_conditions = self._check_exit_conditions(
+            future_data, stop, target, direction, opposing_signal
+        )
+        success, failure, exit_row = self._determine_exit_outcome(
+            exit_conditions, future_data, direction, stop, target, opposing_signal
+        )
 
-        exit_conditions = stop_condition | target_condition | opposing_signal
-        exit_idx = exit_conditions.idxmax() if exit_conditions.any() else future_data.index[-1]
-        exit_row = future_data.loc[exit_idx]
-        success = target_condition.loc[exit_idx] if exit_conditions.any() else False
-        failure = (stop_condition.loc[exit_idx] or opposing_signal.loc[exit_idx]) if exit_conditions.any() else (
-            direction == "buy" and exit_row["close"] <= stop
-        ) or (direction == "sell" and exit_row["close"] >= stop)
-
-        time_above_stop = 0
-        if above_stop.any():
-            above_stop_data = future_data[above_stop][["timestamp"]].copy()
-            above_stop_data["time_diff"] = above_stop_data["timestamp"].diff().fillna(pd.Timedelta(seconds=0))
-            time_above_stop = above_stop_data["time_diff"].sum().total_seconds() / 60.0
-
+        time_above_stop = self._calculate_time_above_stop(future_data, stop, direction)
         profit = (
             exit_row["close"] - entry_price
             if direction == "buy"
@@ -423,7 +517,9 @@ class SignalBacktester:
                             backtest_id=backtest_id,
                             event={
                                 "timestamp": timestamp,
-                                "event_type": "buy_signal" if signal == BUY_SIGNAL else "sell_signal",
+                                "event_type": "buy_signal"
+                                if signal == BUY_SIGNAL
+                                else "sell_signal",
                                 "price": row.close,
                             },
                         )
@@ -501,5 +597,7 @@ class SignalBacktester:
         }
 
         await self.save_backtest_results(backtest_id, result)
-        logger.info("Backtest completed: %s signals, %s trades", signals_triggered, metrics['num_trades'])
+        logger.info(
+            "Backtest completed: %s signals, %s trades", signals_triggered, metrics["num_trades"]
+        )
         return result
