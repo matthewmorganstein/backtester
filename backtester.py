@@ -13,7 +13,53 @@ class ExitResult(TypedDict):
     time_above_stop: float
 
 class SignalBacktester:
-    ...
+    """Backtests trading signals using Pointland and Sphere strategies."""
+
+    def __init__(
+        self,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        square_threshold: float = 350,
+        distance_threshold: float = 0.01,
+    ) -> None:
+        """Initialize the SignalBacktester.
+
+        Args:
+            start_date: Start date in YYYY-MM-DD format (default: 30 days ago).
+            end_date: End date in YYYY-MM-DD format (default: today).
+            square_threshold: Threshold for r_1/r_2 signals.
+            distance_threshold: Threshold for target/stop in sphere_exit.
+        """
+        default_end = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        default_start = (
+            datetime.now(timezone.utc) - timedelta(days=DEFAULT_DATE_RANGE_DAYS)
+        ).strftime("%Y-%m-%d")
+        self.start_date = start_date or default_start
+        self.end_date = end_date or default_end
+        self.square_threshold = square_threshold
+        self.distance_threshold = distance_threshold
+        self.trade_manager = TradeManager()
+        self.dao = PostgresDAO()
+        self.backtest_dao = BacktestDAO()
+        self.target_bars = TARGET_BARS
+
+    async def _fetch_data(self) -> pd.DataFrame:
+        """Fetch data from the database.
+
+        Returns:
+            DataFrame with market data.
+
+        Raises:
+            ValueError: If data is empty or database error occurs.
+        """
+        try:
+            df = await self.dao.get_data(self.start_date, self.end_date)
+            if df.empty:
+                logger.error(f"No data for {self.start_date} to {self.end_date}")
+                raise ValueError("Empty DataFrame from DAO")
+        except PostgresError as e:
+            logger.exception("Failed to connect to RISE database")
+            raise ValueError("RISE database error")
 
     def _calculate_target_and_stop(
         self,
