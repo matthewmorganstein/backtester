@@ -1,6 +1,4 @@
-##Core Purpose: To provide an automated, data-driven framework for validating the historical performance of the "Pointland entry / Sphere exit" trading strategy, enabling informed decisions before committing real capital.
-
-#This pre-release Minimum Viable Product (MVP) of the SignalBacktester offers significant value by transforming raw historical market data into actionable insights.
+Core Purpose: To provide an automated, data-driven framework for validating the historical performance of the "Pointland entry / Sphere exit" trading strategy, enabling informed decisions before committing real capital. This pre-release Minimum Viable Product (MVP) of the SignalBacktester offers significant value by transforming raw historical market data into actionable insights.
 
 ## Key Value Drivers:
 ## Strategic De-Risking & Confidence Building:
