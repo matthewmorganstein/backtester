@@ -1,6 +1,6 @@
 # flatfire pre-release backtest module
 
-Backtester is designed to provide an automated, data-driven framework for validating the historical performance of the "Pointland entry / Sphere exit" trading strategy, enabling informed decisions before committing real capital. This pre-release Minimum Viable Product (MVP) of the FlatFire app offers significant value by transforming raw historical market data into actionable insights.
+Backtester is designed to provide an automated, data-driven framework for validating the historical performance of the "Pointland entry / Sphere exit" trading strategy, enabling informed decisions before committing real capital. I've opened the code to the public as an effort to build a solid foundation for future feature development. This pre-release Minimum Viable Product (MVP) of the FlatFire app offers significant value by transforming raw historical market data into actionable insights.
 
 ## Key Value Drivers:
 ## Strategic De-Risking & Confidence Building:
@@ -11,17 +11,15 @@ Allows for testing and refinement of strategy parameters (square_threshold, dist
 Builds confidence in a strategy's potential before live deployment, significantly reducing the risk of capital loss from untested ideas.
 # Quantitative & Objective Performance Measurement:
 #What it does: For each simulated trade, it meticulously calculates key performance indicators encapsulated in the ExitResult (e.g., success, failure, profit, exit_price, exit_time).
-#Value Delivered:
 
+#Value Delivered:
 Moves beyond subjective assessments to provide concrete, data-backed evidence of strategy performance.
 Enables objective comparison between different parameter sets or minor strategy variations (once future iterations allow).
-
-
 Provides clear metrics to evaluate whether a strategy meets predefined performance benchmarks.
 
 # Deeper Understanding of Strategy Dynamics & Risk Profile:
 
-#W hat it does:
+# What it does:
 Calculates dynamic target and stop levels based on market conditions at the time of the signal (_calculate_target_and_stop using signal_high, signal_low, and distance_threshold).
 Evaluates multiple exit conditions: hitting profit targets, stop-loss levels, or encountering opposing signals (_check_exit_conditions, _determine_exit_outcome).
 Introduces a unique risk metric: time_above_stop, quantifying how long a trade remained favorable relative to its stop-loss level.
@@ -44,8 +42,6 @@ Provides a robust and modular foundation upon which more advanced features can b
 Accelerates the development lifecycle for a more comprehensive trading analytics platform.
 Target Audience & Communication Focus:
 Traders & Quantitative Analysts: Emphasize de-risking, objective performance metrics, deep strategy insights (especially time_above_stop), and the ability to test ideas rapidly.
-# Development Team: Highlight the clean architecture, automation capabilities, and the solid foundation for future feature development.
-# Management & Stakeholders: Focus on risk reduction, data-driven decision-making, operational efficiency, and the strategic value of building proprietary analytics tools.
 
 visualization.py, a new module with utilities for creating interactive Plotly charts that display portfolio values and trade signals from backtest data. The implementation handles edge cases like empty data, includes proper error logging, and ensures correct data processing for visualization purposes.
 
