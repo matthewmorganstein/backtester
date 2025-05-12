@@ -4,21 +4,19 @@ Backtester is designed to provide an automated, data-driven framework for valida
 
 ## Key Value Drivers:
 ## Strategic De-Risking & Confidence Building:
-# What it does: Simulates trades based on the defined strategy (pointland_signal for entry, sphere_exit for exit logic) using historical market data (_fetch_data, _validate_and_clean_data) over a user-specified period (start_date, end_date).
-# Value Delivered:
+What it does: Simulates trades based on the defined strategy (pointland_signal for entry, sphere_exit for exit logic) using historical market data (_fetch_data, _validate_and_clean_data) over a user-specified period (start_date, end_date).
+
 # Answers the critical question: "How might this specific strategy have performed in the past?"
 Allows for testing and refinement of strategy parameters (square_threshold, distance_threshold) in a risk-free environment.
 Builds confidence in a strategy's potential before live deployment, significantly reducing the risk of capital loss from untested ideas.
 # Quantitative & Objective Performance Measurement:
 #What it does: For each simulated trade, it meticulously calculates key performance indicators encapsulated in the ExitResult (e.g., success, failure, profit, exit_price, exit_time).
 
-#Value Delivered:
+# Value Delivered:
 Moves beyond subjective assessments to provide concrete, data-backed evidence of strategy performance.
-Enables objective comparison between different parameter sets or minor strategy variations (once future iterations allow).
 Provides clear metrics to evaluate whether a strategy meets predefined performance benchmarks.
 
-# Deeper Understanding of Strategy Dynamics & Risk Profile:
-
+## Deeper Understanding of Strategy Dynamics & Risk Profile:
 # What it does:
 Calculates dynamic target and stop levels based on market conditions at the time of the signal (_calculate_target_and_stop using signal_high, signal_low, and distance_threshold).
 Evaluates multiple exit conditions: hitting profit targets, stop-loss levels, or encountering opposing signals (_check_exit_conditions, _determine_exit_outcome).
