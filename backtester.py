@@ -13,7 +13,7 @@ from settings import Settings
 
 logger = logging.getLogger(__name__)
 
-# Constants
+# Constants r
 INITIAL_CASH = 100_000
 TARGET_BARS = 1000
 TIME_ABOVE_STOP_THRESHOLD = 30
