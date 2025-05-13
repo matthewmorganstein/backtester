@@ -19,6 +19,12 @@ class Settings(BaseSettings):
     CORS_ALLOWED_METHODS: list[str] = # More specific default
     CORS_ALLOWED_HEADERS: list[str] = # Common headers
     LOG_LEVEL: str = "INFO"
+    TARGET_BARS: int = 1000
+    INITIAL_CASH: float = 100_000
+    TIME_ABOVE_STOP_THRESHOLD: float = 30
+    BUY_SIGNAL: int = 1
+    SELL_SIGNAL: int = -1
+    HOLD_SIGNAL: int = 0
 
     model_config = SettingsConfigDict(
         env_prefix="BACKTESTING_API_",
