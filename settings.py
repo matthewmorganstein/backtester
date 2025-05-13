@@ -1,34 +1,22 @@
 """Application settings for the backtesting API."""
 from __future__ import annotations
-from typing import Optional
-from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Error message constants
-MISSING_RISE_DB_URL = "RISE_DB_URL environment variable is not set"
-MISSING_BACKTEST_DB_URL = "BACKTEST_DB_URL environment variable is not set"
-MISSING_API_KEY = "API_KEY environment variable is not set"
+from pydantic import SecretStr
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEFAULT_PORT = 8000
 
 class Settings(BaseSettings):
     """Configuration settings for the backtesting API."""
 
-    RISE_DB_URL: str | None = None
-    BACKTEST_DB_URL: str | None = None
-    API_KEY: str | None = None
+    RISE_DB_URL: str
+    BACKTEST_DB_URL: str
+    API_KEY: SecretStr
     PORT: int = DEFAULT_PORT
 
     model_config = SettingsConfigDict(
+        env_prefix="BACKTESTING_API_",
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
-
-    def validate_settings(self) -> None:
-        """Validate critical settings."""
-        if not self.RISE_DB_URL:
-            raise ValueError(MISSING_RISE_DB_URL)
-        if not self.BACKTEST_DB_URL:
-            raise ValueError(MISSING_BACKTEST_DB_URL)
-        if not self.API_KEY:
-            raise ValueError(MISSING_API_KEY)
