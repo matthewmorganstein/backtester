@@ -8,12 +8,12 @@ DEFAULT_PORT = 8000
 
 class Settings(BaseSettings):
     """Configuration settings for the backtesting API."""
-    #... (RISE_DB_URL, BACKTEST_DB_URL, API_KEY, PORT, etc.)
     RISE_DB_URL: str
     BACKTEST_DB_URL: str
     API_KEY: SecretStr
     PORT: int = DEFAULT_PORT
-
+    DB_POOL_MIN_SIZE: int = 1
+    DB_POOL_MAX_SIZE: int = 10
     MAX_DATE_RANGE_DAYS: int = 30
     CORS_ALLOWED_ORIGINS: list[str] = ["*"] # Default to all, but ideally specify
     CORS_ALLOWED_METHODS: list[str] = # More specific default
