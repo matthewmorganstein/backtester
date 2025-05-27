@@ -1,6 +1,6 @@
 ## Backtester
 
-*Backtester* is a blazing phenomenon of financial combustion, where the light of precise trading signals, the heat of strategic backtesting, and the flame of portfolio mastery converge in a radiant, modular API. Built on the "Pointland entry / Sphere exit" strategy, it uses `r_1` and `r_2` indicators to spark trades and spherical logic to exit with precision. *Backtester* illuminates market opportunities, fuels performance, and flares with stunning visualizations, redefining the gravity of financial innovation.
+*Backtester* is a modular API built on the "Pointland entry / Sphere exit" strategy, it uses `r_1` and `r_2` indicators to spark trades and spherical logic to exit with precision. *Backtester* illuminates market opportunities, fuels performance, and flares with stunning visualizations, redefining the gravity of financial innovation. Built with Grok. 
 
 ## Features
 - **Signal Generation**: Pointland signals using `r_1`/`r_2` > 350 and price breakouts.
