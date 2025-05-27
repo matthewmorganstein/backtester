@@ -487,10 +487,6 @@ class SignalBacktester:
             (df[COL_CLOSE] > prev_high) & 
             ((df[COL_R1] > square_threshold) | (df[COL_R2] > square_threshold))
         ).fillna(False)
-        sell_signal = (
-            (df[COL_CLOSE] > prev_high) & 
-            ((df[COL_R1] > square_threshold) | (df[COL_R2] > square_threshold))
-        ).fillna(False)
         signals = pd.Series(HOLD_SIGNAL, index=df.index, dtype=int)
         signals[buy_signal] = BUY_SIGNAL
         signals[sell_signal] = SELL_SIGNAL
